@@ -1,0 +1,21 @@
+[project]
+name = "autoapitest"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "allure-pytest>=2.9.45",
+    "jsonpath-ng>=1.6.0",
+    "loguru>=0.7.0",
+    "openpyxl>=3.0.10",
+    "pandas>=1.5.0",
+    "pytest>=7.0.0",
+    "pytest-html>=3.2.0",
+    "pytest-xdist>=3.0.0",
+    "requests>=2.28.0",
+]
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
