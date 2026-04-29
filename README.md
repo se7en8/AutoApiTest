@@ -57,7 +57,10 @@ AutoApiTest/
 
 ```bash
 # Python 3.10+
-pip install -r requirements.txt
+# 安装 uv（如未安装）：pip install uv
+
+# 同步依赖（自动创建 .venv 并安装所有依赖）
+uv sync
 
 # Allure 命令行工具（报告生成需要）
 # 将 allure-bat 放到项目根目录，或安装到 PATH
@@ -67,29 +70,29 @@ pip install -r requirements.txt
 
 ```bash
 # 默认环境 (dev)
-python run_tests.py
+uv run python run_tests.py
 
 # 指定环境
-python run_tests.py --environment test
+uv run python run_tests.py --environment test
 
 # 运行并生成 Allure 报告
-python run_tests.py --environment test --run-and-report
+uv run python run_tests.py --environment test --run-and-report
 
 # 并行执行
-python run_tests.py --workers 4
+uv run python run_tests.py --workers 4
 
 # 生成 HTML 报告
-python run_tests.py --html-report
+uv run python run_tests.py --html-report
 
 # 仅生成报告（不运行测试）
-python run_tests.py --generate-report
+uv run python run_tests.py --generate-report
 
 # 打开/预览报告
-python run_tests.py --open-report
-python run_tests.py --review-report
+uv run python run_tests.py --open-report
+uv run python run_tests.py --review-report
 
 # 直接使用 pytest
-pytest tests/ --environment=test
+uv run pytest tests/ --environment=test
 ```
 
 ### 3. 查看报告
@@ -237,6 +240,8 @@ ALLURE_CONFIG = {
 
 ## 依赖
 
+本项目使用 [uv](https://docs.astral.sh/uv/) 管理依赖，完整依赖列表见 [pyproject.toml](pyproject.toml)。
+
 | 包 | 用途 |
 |----|------|
 | pytest >= 7.0 | 测试框架 |
@@ -252,3 +257,7 @@ ALLURE_CONFIG = {
 | pandas >= 1.5 | 数据处理 |
 
 数据库驱动按需安装：`pymysql`（MySQL）、`psycopg2-binary`（PostgreSQL）、`pymssql`（SQL Server）。
+
+## License
+
+[MIT](LICENSE)
