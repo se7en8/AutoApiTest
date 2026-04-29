@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(python generate_example_excel.py)",
-      "Bash(python test_encoding.py)",
-      "Bash(python -c \"print\\('测试中文输出'\\); print\\(f'编码: {sys.stdout.encoding}'\\)\")"
-    ]
-  }
-}
