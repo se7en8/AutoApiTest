@@ -16,7 +16,6 @@
     from setting import reload_config
     reload_config('prod')
 """
-import sys
 import importlib
 from pathlib import Path
 from typing import Type, Any
@@ -105,29 +104,6 @@ def __dir__():
     base = list(globals().keys())
     base.extend(attr for attr in dir(cfg) if not attr.startswith('_'))
     return sorted(set(base))
-
-
-# ==================== 安全打印 ====================
-
-def _safe_print(message):
-    if not isinstance(message, str):
-        message = str(message)
-    try:
-        print(message)
-    except (UnicodeEncodeError, AttributeError):
-        try:
-            sys.stdout.buffer.write(message.encode('utf-8') + b'\n')
-            sys.stdout.flush()
-        except Exception:
-            try:
-                sys.stdout.write(message.encode('utf-8', 'replace').decode('utf-8', 'replace') + '\n')
-                sys.stdout.flush()
-            except Exception:
-                try:
-                    sys.stdout.write(repr(message) + '\n')
-                    sys.stdout.flush()
-                except Exception:
-                    pass
 
 
 # ==================== 启动 ====================

@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import setting as config
+from common.console import print_info, print_success, print_warn, print_error
 
 
 def _get_allure_bin() -> str | None:
@@ -16,11 +17,11 @@ def _get_allure_bin() -> str | None:
     allure_dir = allure_bin.parent.parent  # allure-bat/
 
     if not allure_dir.exists():
-        print(f"Allure 目录不存在: {allure_dir}")
-        print("请将 allure-bat 放置到项目根目录")
+        print_error(f'Allure 目录不存在: {allure_dir}')
+        print_warn('请将 allure-bat 放置到项目根目录')
         return None
     if not allure_bin.exists():
-        print(f"Allure 可执行文件不存在: {allure_bin}")
+        print_error(f'Allure 可执行文件不存在: {allure_bin}')
         return None
     return str(allure_bin)
 
@@ -47,7 +48,7 @@ def write_environment_properties():
 
     prop_file = results_dir / 'environment.properties'
     prop_file.write_text('\n'.join(f'{k}={v}' for k, v in props.items()), encoding='utf-8')
-    print(f"环境信息已写入: {prop_file}")
+    print_success(f'环境信息已写入: {prop_file}')
 
 
 # ==================== 历史趋势 ====================
@@ -78,7 +79,7 @@ def _restore_history():
     if dest.exists():
         shutil.rmtree(dest)
     shutil.copytree(str(source), str(dest))
-    print(f"历史数据已恢复: {source} → {dest}")
+    print_success(f'历史数据已恢复: {source} → {dest}')
 
 
 def _persist_history():
@@ -93,7 +94,7 @@ def _persist_history():
     if backup_history.exists():
         shutil.rmtree(backup_history)
     shutil.copytree(str(report_history), str(backup_history))
-    print(f"历史数据已备份: {backup_history}")
+    print_success(f'历史数据已备份: {backup_history}')
 
 
 # ==================== 报告生成 / 打开 ====================
@@ -112,19 +113,19 @@ def generate_allure_report():
     report_dir = Path(ac['report_dir'])
 
     if not results_dir.exists():
-        print(f"Allure 结果目录不存在: {results_dir}")
+        print_error(f'结果目录不存在: {results_dir}')
         return
 
     cmd = [allure_bin, 'generate', str(results_dir), '-o', str(report_dir), '--clean']
-    print(f"生成 Allure 报告: {' '.join(cmd)}")
+    print_info(f'生成 Allure 报告 ：{" ".join(cmd)}')
 
     result = subprocess.run(cmd, cwd=config.BASE_DIR, check=False)
     if result.returncode == 0:
         _persist_history()
-        print(f"Allure 报告已生成: {report_dir}")
-        print(f"使用命令打开报告: allure open {report_dir}")
+        print_success(f'报告已生成: {report_dir}')
+        print_info(f'使用命令打开报告: allure open {report_dir}')
     else:
-        print(f"生成 Allure 报告失败: {result.returncode}")
+        print_error(f'生成报告失败: 退出码 {result.returncode}')
 
 
 def open_allure_report():
@@ -136,11 +137,29 @@ def open_allure_report():
     report_dir = Path(config.ALLURE_CONFIG['report_dir'])
 
     if not report_dir.exists():
-        print(f"Allure 报告目录不存在: {report_dir}")
-        print("请先生成报告: python run_tests.py --generate-report")
+        print_error(f'报告目录不存在: {report_dir}')
+        print_warn('请先生成报告: python run_tests.py --generate-report')
         return
 
     cmd = [allure_bin, 'open', str(report_dir)]
-    print(f"打开 Allure 报告: {' '.join(cmd)}")
+    print_info(f'打开 Allure 报告 ：{" ".join(cmd)}')
     subprocess.run(cmd, cwd=config.BASE_DIR)
 
+
+def review_allure_report():
+    """查看 Allure 报告"""
+    allure_bin = _get_allure_bin()
+    if allure_bin is None:
+        return
+    
+    ac = config.ALLURE_CONFIG
+    results_dir = Path(ac['results_dir'])
+    cmd = [allure_bin, 'serve', str(results_dir)]
+    print_info(f'预览 Allure 报告命令：{" ".join(cmd)}')
+    try:
+        subprocess.run(cmd, cwd=config.BASE_DIR, check=False)
+    except KeyboardInterrupt:
+        print_warn('预览已停止')
+    except Exception:
+        print_error('预览失败')
+    

@@ -8,7 +8,8 @@ import io
 import setting as config
 from setting import reload_config, get_available_envs
 from common.runner import build_pytest_command, run_pytest
-from common.allure_utils import generate_allure_report, open_allure_report
+from common.allure_utils import generate_allure_report, open_allure_report, review_allure_report
+from common.console import print_section, print_info
 
 
 # ==================== 编码修复 ====================
@@ -68,6 +69,7 @@ def main():
     parser = argparse.ArgumentParser(description='API 自动化测试执行脚本')
     parser.add_argument('--generate-report', action='store_true', help='生成 Allure 报告（不运行测试）')
     parser.add_argument('--open-report', action='store_true', help='打开 Allure 报告')
+    parser.add_argument('--review-report', action='store_true', help='预览 Allure 报告')
     parser.add_argument('--run-and-report', action='store_true', help='运行测试并生成报告')
     parser.add_argument('--environment', type=str, choices=env_names,
         help=f'测试环境: {", ".join(env_names)}'
@@ -85,9 +87,10 @@ def main():
     if args.environment:
         reload_config(args.environment)
 
-    print(f"🎉 AutoApiTest 配置已加载，当前环境: {config.CURRENT_ENVIRONMENT}")
-    print(f"【基础URL】: {config.BASE_URL}")
-    print(f"【日志级别】: {config.LOG_CONFIG['log_level']}")
+    print_section('AutoApiTest')
+    print_info(f'环境: {config.CURRENT_ENVIRONMENT.upper()}')
+    print_info(f'基础 URL: {config.BASE_URL}')
+    print_info(f'日志级别: {config.LOG_CONFIG["log_level"]}')
 
     if args.generate_report:
         generate_allure_report()
@@ -95,6 +98,10 @@ def main():
 
     if args.open_report:
         open_allure_report()
+        return 0
+        
+    if args.review_report:
+        review_allure_report()
         return 0
 
     cmd = build_pytest_command(args)

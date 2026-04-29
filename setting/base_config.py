@@ -57,9 +57,9 @@ class BaseConfig:
     ALLURE_CONFIG: Dict[str, Any] = {
         'enabled': True,
         'allure_bin': str(PROJECT_ROOT / 'allure-bat' / 'bin' / 'allure.bat'),
-        'results_dir': str(PROJECT_ROOT / 'report' / 'allure-results'),
-        'report_dir': str(PROJECT_ROOT / 'report' / 'allure'),
-        'history_dir': str(PROJECT_ROOT / 'report' / 'allure-history'),
+        'results_dir': str(PROJECT_ROOT / 'report' / 'allure' / 'allure-result'),
+        'report_dir': str(PROJECT_ROOT / 'report' / 'allure' / 'allure-html'),
+        'history_dir': str(PROJECT_ROOT / 'report' / 'allure' / 'allure-history'),
         'clean_results': True,
         # 写入 allure-results/environment.properties 的静态字段
         'environment_properties': {
@@ -108,6 +108,44 @@ class BaseConfig:
         'sender': 'auto_api_test@example.com',
         'receivers': ['team@example.com'],
         'subject_prefix': '[AutoApiTest] ',
+    }
+
+    # ==================== 钉钉机器人 ====================
+    DINGTALK_CONFIG: Dict[str, Any] = {
+        'enabled': False,
+        'webhook_url': '',
+        'secret': '',
+        'at_mobiles': [],
+        'at_all': False,
+    }
+
+    # ==================== 企业微信机器人 ====================
+    WECOM_CONFIG: Dict[str, Any] = {
+        'enabled': False,
+        'webhook_url': '',
+        'mentioned_list': [],
+        'mentioned_mobile_list': [],
+    }
+
+    # ==================== 飞书机器人 ====================
+    FEISHU_CONFIG: Dict[str, Any] = {
+        'enabled': False,
+        'webhook_url': '',
+        'secret': '',
+    }
+
+    # ==================== 数据库 ====================
+    DATABASE_CONFIG: Dict[str, Any] = {
+        'enabled': False,
+        'type': 'sqlite',          # sqlite | mysql | postgresql | sqlserver
+        'host': 'localhost',
+        'port': 3306,
+        'database': 'autoapitest',
+        'username': 'root',
+        'password': '',
+        'charset': 'utf8mb4',
+        'pool_min_size': 2,
+        'pool_max_size': 10,
     }
 
     # ==================== 工具方法 ====================

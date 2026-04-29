@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import setting as config
+from common.console import print_info, print_warn, print_error
 
 
 def build_pytest_command(args) -> List[str]:
@@ -47,17 +48,15 @@ def run_pytest(cmd: List[str], cwd: Optional[Path] = None) -> int:
     env['PYTHONIOENCODING'] = 'utf-8'
     env['PYTHONUTF8'] = '1'
 
-    print(f"【运行命令】: {' '.join(cmd)}")
-    print(f"【工作目录】: {cwd}")
+    print_info(f'运行命令：{" ".join(cmd)}')
+    print_info(f'工作目录: {cwd}')
 
     try:
         result = subprocess.run(cmd, cwd=cwd, env=env, check=False)
         return result.returncode
     except KeyboardInterrupt:
-        print("\n测试被用户中断")
+        print_warn('测试被用户中断')
         return 1
     except Exception as e:
-        print(f"运行测试时发生错误: {e}")
+        print_error(f'运行测试时发生错误: {e}')
         return 1
-
-

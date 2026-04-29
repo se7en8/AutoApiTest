@@ -7,6 +7,7 @@ import pytest
 from common.request_client import RequestClient
 from common.variable_manager import VariableManager
 from common.logger import logger
+from common.allure_utils import write_environment_properties
 import setting as cfg
 from setting import reload_config, get_available_envs
 
@@ -57,9 +58,29 @@ def request_client(variable_manager: VariableManager) -> RequestClient:
     client.close()
 
 
+@pytest.fixture(scope='session')
+def database():
+    """数据库连接池 fixture（会话级别，通过 DATABASE_CONFIG['enabled'] 控制开关）"""
+    cfg_db = cfg.DATABASE_CONFIG
+    if not cfg_db.get('enabled', False):
+        yield None
+        return
+
+    from common.database import DatabaseManager
+
+    db = DatabaseManager()
+    db.connect()
+    yield db
+    db.close()
+
+
 def pytest_sessionfinish(session, exitstatus):
     """测试会话结束"""
     logger.info(f"测试会话结束，退出状态: {exitstatus}")
+
+    # 写入 Allure 环境信息（在会话结束时写入，确保环境正确）
+    print()  # pytest 进度行末尾无换行，先补齐
+    write_environment_properties()
 
     if not cfg.VARIABLE_CONFIG['persist_variables']:
         VariableManager.clear_variables()
