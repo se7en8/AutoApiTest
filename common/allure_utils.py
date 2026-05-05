@@ -12,18 +12,16 @@ from common.console import print_info, print_success, print_warn, print_error
 
 
 def _get_allure_bin() -> str | None:
-    """解析 Allure 可执行文件路径，检查 allure-bat 目录是否存在"""
-    allure_bin = Path(config.ALLURE_CONFIG['allure_bin'])
-    allure_dir = allure_bin.parent.parent  # allure-bat/
+    """从系统 PATH 解析 allure 可执行文件"""
+    from shutil import which
 
-    if not allure_dir.exists():
-        print_error(f'Allure 目录不存在: {allure_dir}')
-        print_warn('请将 allure-bat 放置到项目根目录')
+    allure_bin = config.ALLURE_CONFIG['allure_bin']
+    path = which(allure_bin)
+    if path is None:
+        print_error(f'未在系统 PATH 中找到 allure 命令，请确认已安装并添加到环境变量')
+        print_warn('安装参考: https://docs.qameta.io/allure-report/#_installing_a_commandline')
         return None
-    if not allure_bin.exists():
-        print_error(f'Allure 可执行文件不存在: {allure_bin}')
-        return None
-    return str(allure_bin)
+    return path
 
 
 def write_environment_properties():

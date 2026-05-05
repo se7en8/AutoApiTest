@@ -13,10 +13,16 @@ import setting as config
 
 
 class VariableManager:
-    """全局变量管理器 — 类级别存储，所有实例共享"""
+    """全局变量管理器 — 会话级单例，所有调用返回同一个实例"""
 
+    _instance: 'VariableManager | None' = None
     _store: Dict[str, Any] = {}
     _loaded: bool = False
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(self):
         self._load_global_variables()
@@ -157,10 +163,11 @@ class VariableManager:
 
     @classmethod
     def clear_variables(cls):
-        """清空类级全局存储"""
+        """清空全局存储并重置单例"""
         cls._store.clear()
         cls._loaded = False
-        logger.debug("全局变量已清空")
+        cls._instance = None
+        logger.debug("全局变量已清空，单例已重置")
 
     # ==================== 便捷方法 ====================
 
