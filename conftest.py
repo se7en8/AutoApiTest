@@ -2,6 +2,8 @@
 pytest 配置文件
 定义 fixture 和测试配置
 """
+import logging
+import re
 import pytest
 
 from common.request_client import RequestClient
@@ -10,6 +12,34 @@ from common.logger import logger
 from common.allure_utils import write_environment_properties
 import setting as cfg
 from setting import reload_config, get_available_envs
+
+# ── loguru → stdlib 桥接 ──────────────────────────────────────────
+# Allure 通过 pytest 的 logging 插件捕获 stdlib logging 输出。
+# 本项目使用 loguru，需将 loguru 消息桥接到 stdlib logging，
+# 同时剥离 ANSI 转义序列，避免 Allure 报告中出现乱码。
+
+_ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
+_BRIDGE_INSTALLED = False
+
+
+def _loguru_to_stdlib_sink(msg: str) -> None:
+    text = _ANSI_RE.sub('', msg).strip()
+    if text:
+        logging.getLogger('AutoApiTest').info(text)
+
+
+def _install_loguru_bridge():
+    global _BRIDGE_INSTALLED
+    if _BRIDGE_INSTALLED:
+        return
+    logger.add(
+        _loguru_to_stdlib_sink,
+        format='{time:YYYY-MM-DD HH:mm:ss} | {level: <7} | {message}',
+        level='DEBUG',
+        colorize=False,
+    )
+    _BRIDGE_INSTALLED = True
+    logging.getLogger('AutoApiTest').info('loguru → stdlib 桥接已安装')
 
 
 def pytest_addoption(parser):
@@ -36,6 +66,8 @@ def pytest_configure(config):
         reload_config(environment)
 
     logger.info(f"配置已加载，当前环境: {cfg.CURRENT_ENVIRONMENT}, base_url: {cfg.BASE_URL}")
+
+    _install_loguru_bridge()
 
     # markers 已在 pytest.ini 中定义，pytest 自动加载，无需在此重复注册
 
