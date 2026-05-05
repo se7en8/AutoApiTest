@@ -1,13 +1,39 @@
 """
 控制台输出模块
 基于 rich 库，提供统一的格式化输出风格
+统一处理 Windows 控制台 UTF-8 编码，确保 rich 和 loguru 输出不受 GBK 限制
 """
 import os
 import sys
 
-# 确保 UTF-8 编码，rich 输出不受 GBK 限制
+# 环境变量：影响子进程和 Python 自身的编码行为
 os.environ.setdefault('PYTHONIOENCODING', 'utf-8')
 os.environ.setdefault('PYTHONUTF8', '1')
+
+# 重配置 stdout/stderr 为 UTF-8（Python 3.7+），loguru 直接写 sys.stdout
+for _stream_name in ('stdout', 'stderr'):
+    _stream = getattr(sys, _stream_name)
+    try:
+        _stream.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
+# Windows 控制台代码页设为 UTF-8 (65001)
+if sys.platform == 'win32':
+    try:
+        import ctypes
+        from ctypes import wintypes
+        _kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        _kernel32.SetConsoleOutputCP(65001)
+        _STD_OUTPUT_HANDLE = -11
+        _ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+        _handle = _kernel32.GetStdHandle(_STD_OUTPUT_HANDLE)
+        _mode = wintypes.DWORD()
+        if _kernel32.GetConsoleMode(_handle, ctypes.byref(_mode)):
+            _mode.value |= _ENABLE_VIRTUAL_TERMINAL_PROCESSING
+            _kernel32.SetConsoleMode(_handle, _mode)
+    except Exception:
+        pass
 
 from rich.console import Console
 from rich.theme import Theme

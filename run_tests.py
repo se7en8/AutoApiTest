@@ -3,60 +3,11 @@
 用于运行 API 自动化测试
 """
 import sys
-import os
-import io
 import setting as config
 from setting import reload_config, get_available_envs
 from common.runner import build_pytest_command, run_pytest
 from common.allure_utils import generate_allure_report, open_allure_report, review_allure_report
 from common.console import print_section, print_info
-
-
-# ==================== 编码修复 ====================
-
-def fix_console_encoding():
-    """修复控制台编码问题，确保支持UTF-8输出"""
-    os.environ['PYTHONIOENCODING'] = 'utf-8'
-    os.environ['PYTHONUTF8'] = '1'
-
-    if sys.platform == 'win32':
-        try:
-            import ctypes
-            from ctypes import wintypes
-            kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
-            kernel32.SetConsoleOutputCP(65001)
-            STD_OUTPUT_HANDLE = -11
-            ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
-            handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
-            mode = wintypes.DWORD()
-            if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
-                mode.value |= ENABLE_VIRTUAL_TERMINAL_PROCESSING
-                kernel32.SetConsoleMode(handle, mode)
-        except Exception:
-            try:
-                os.system('chcp 65001 >nul 2>&1')
-            except Exception:
-                pass
-
-    for stream_name in ['stdout', 'stderr']:
-        stream = getattr(sys, stream_name)
-        try:
-            if hasattr(stream, 'reconfigure'):
-                stream.reconfigure(encoding='utf-8', errors='replace')
-            elif hasattr(stream, 'buffer'):
-                new_stream = io.TextIOWrapper(
-                    stream.buffer, encoding='utf-8', errors='replace', write_through=True
-                )
-                setattr(sys, stream_name, new_stream)
-        except Exception:
-            try:
-                if hasattr(stream, 'errors'):
-                    stream.errors = 'replace'
-            except Exception:
-                pass
-
-
-fix_console_encoding()
 
 
 # ==================== CLI 入口 ====================
@@ -104,7 +55,12 @@ def main():
         review_allure_report()
         return 0
 
-    cmd = build_pytest_command(args)
+    cmd = build_pytest_command(
+        environment=args.environment,
+        workers=args.workers,
+        stop_on_failure=args.stop_on_failure,
+        html_report=args.html_report,
+    )
     cmd.extend(remaining)
 
     returncode = run_pytest(cmd)

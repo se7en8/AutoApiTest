@@ -4,7 +4,6 @@ pytest 命令构建与执行
 """
 import subprocess
 import sys
-import os
 from pathlib import Path
 from typing import List, Optional
 
@@ -12,8 +11,13 @@ import setting as config
 from common.console import print_info, print_warn, print_error
 
 
-def build_pytest_command(args) -> List[str]:
-    """根据 ALLURE_CONFIG 和 CLI 参数构建 pytest 命令列表"""
+def build_pytest_command(
+    environment: Optional[str] = None,
+    workers: int = 1,
+    stop_on_failure: bool = False,
+    html_report: bool = False,
+) -> List[str]:
+    """根据 ALLURE_CONFIG 和参数构建 pytest 命令列表"""
     allure_cfg = config.ALLURE_CONFIG
 
     cmd = [sys.executable, '-m', 'pytest']
@@ -23,13 +27,13 @@ def build_pytest_command(args) -> List[str]:
         if allure_cfg.get('clean_results', True):
             cmd.append('--clean-alluredir')
 
-    if args.environment:
-        cmd.append(f'--environment={args.environment}')
-    if args.stop_on_failure:
+    if environment:
+        cmd.append(f'--environment={environment}')
+    if stop_on_failure:
         cmd.append('--stop-on-failure')
-    if args.workers and args.workers > 1:
-        cmd.append(f'-n={args.workers}')
-    if args.html_report:
+    if workers > 1:
+        cmd.append(f'-n={workers}')
+    if html_report:
         html_dir = Path(config.HTML_REPORT_DIR)
         html_dir.mkdir(parents=True, exist_ok=True)
         html_file = html_dir / 'report.html'
@@ -44,15 +48,11 @@ def run_pytest(cmd: List[str], cwd: Optional[Path] = None) -> int:
     if cwd is None:
         cwd = config.BASE_DIR
 
-    env = os.environ.copy()
-    env['PYTHONIOENCODING'] = 'utf-8'
-    env['PYTHONUTF8'] = '1'
-
     print_info(f'运行命令：{" ".join(cmd)}')
     print_info(f'工作目录: {cwd}')
 
     try:
-        result = subprocess.run(cmd, cwd=cwd, env=env, check=False)
+        result = subprocess.run(cmd, cwd=cwd, check=False)
         return result.returncode
     except KeyboardInterrupt:
         print_warn('测试被用户中断')

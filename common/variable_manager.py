@@ -54,13 +54,15 @@ class VariableManager:
     def _get_pattern(cls) -> str:
         return config.VARIABLE_CONFIG.get('variable_pattern', r'\$(\w+)\$')
 
-    def extract_variables(self, extract_rules: Dict[str, str], response_data: Dict[str, Any]) -> Dict[str, Any]:
+    def extract_variables(self, extract_rules: Dict[str, str], response_data: Dict[str, Any],
+                          multi: bool = False) -> Dict[str, Any]:
         """
         从响应数据中提取变量并存入全局存储
 
         Args:
             extract_rules: {变量名: jsonpath表达式}
             response_data: 响应数据
+            multi: 为 True 时匹配多值返回列表；为 False 时取第一个匹配并警告多余匹配
 
         Returns:
             本次提取的变量字典
@@ -77,8 +79,19 @@ class VariableManager:
                 expr = parse(jsonpath_expr)
                 matches = expr.find(response_data)
                 if matches:
-                    extracted[var_name] = matches[0].value
-                    logger.debug(f"提取变量 '{var_name}' = {extracted[var_name]}")
+                    values = [m.value for m in matches]
+                    if multi:
+                        extracted[var_name] = values
+                        logger.debug(f"提取变量 '{var_name}' = {values} ({len(values)} 项)")
+                    else:
+                        extracted[var_name] = values[0]
+                        if len(values) > 1:
+                            logger.debug(
+                                f"jsonpath 匹配多项 ({len(values)}): '{var_name}' ({jsonpath_expr})，"
+                                f"已取首个值: {values[0]}，其余已忽略。请使用 multi=True 获取全部"
+                            )
+                        else:
+                            logger.debug(f"提取变量 '{var_name}' = {extracted[var_name]}")
                 else:
                     logger.warning(f"jsonpath 未匹配: '{var_name}' ({jsonpath_expr})")
             except Exception as e:

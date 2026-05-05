@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 import setting as config
 from common.logger import logger
@@ -27,8 +29,8 @@ from common.console import print_success, print_error
 class EmailNotifier:
     """邮件通知，配置来源 config.EMAIL_CONFIG"""
 
-    def __init__(self):
-        cfg = config.EMAIL_CONFIG
+    def __init__(self, config_override: dict = None):
+        cfg = {**config.EMAIL_CONFIG, **(config_override or {})}
         self._enabled = cfg.get('enabled', False)
         self._smtp_server = cfg.get('smtp_server', '')
         self._smtp_port = cfg.get('smtp_port', 587)
@@ -95,56 +97,99 @@ class EmailNotifier:
             print_error(f'邮件发送失败: {e}')
 
 
-# ==================== 钉钉机器人 ====================
+# ==================== Webhook 基类 ====================
 
-class DingTalkNotifier:
-    """钉钉群机器人通知，配置来源 config.DINGTALK_CONFIG"""
+class BaseWebhookNotifier:
+    """Webhook 通知基类，提供重试、签名、配置注入等公共能力"""
 
-    def __init__(self):
-        cfg = config.DINGTALK_CONFIG
+    _notifier_name: str = 'Webhook'
+    _success_field: str = 'errcode'
+    _success_code: int = 0
+
+    def __init__(self, base_config: dict, config_override: dict = None):
+        cfg = {**base_config, **(config_override or {})}
         self._enabled = cfg.get('enabled', False)
         self._webhook_url = cfg.get('webhook_url', '')
+
+    # ==================== 子类覆盖点 ====================
+
+    def _sign(self) -> Optional[Dict[str, Any]]:
+        """签名参数，默认无签名。返回 dict 表示需要追加的参数"""
+        return None
+
+    def _get_url(self) -> str:
+        """获取最终 webhook URL（子类可覆盖加签逻辑）"""
+        return self._webhook_url
+
+    # ==================== HTTP 发送（含重试） ====================
+
+    def _post(self, payload: dict):
+        if not self._enabled:
+            logger.debug(f'{self._notifier_name}通知未启用，跳过发送')
+            return
+
+        url = self._get_url()
+
+        # 签名追加到请求体
+        sign_data = self._sign()
+        if sign_data:
+            payload.update(sign_data)
+
+        http_cfg = config.HTTP_CONFIG
+        retry_strategy = Retry(
+            total=http_cfg.get('max_retries', 3),
+            backoff_factor=http_cfg.get('retry_backoff_factor', 1),
+            status_forcelist=http_cfg.get('retry_status_codes', [429, 500, 502, 503, 504]),
+            allowed_methods=['POST'],
+        )
+        session = requests.Session()
+        session.mount('https://', HTTPAdapter(max_retries=retry_strategy))
+        session.mount('http://', HTTPAdapter(max_retries=retry_strategy))
+
+        try:
+            resp = session.post(url, json=payload, timeout=http_cfg.get('timeout', 30))
+            result = resp.json()
+            if result.get(self._success_field) == self._success_code:
+                logger.info(f'{self._notifier_name}消息已发送')
+                print_success(f'{self._notifier_name}消息已发送')
+            else:
+                logger.error(f'{self._notifier_name}消息发送失败: {result}')
+                print_error(f'{self._notifier_name}消息发送失败: {result}')
+        except Exception as e:
+            logger.error(f'{self._notifier_name}消息发送异常: {e}')
+            print_error(f'{self._notifier_name}消息发送异常: {e}')
+        finally:
+            session.close()
+
+
+# ==================== 钉钉机器人 ====================
+
+class DingTalkNotifier(BaseWebhookNotifier):
+    """钉钉群机器人通知"""
+
+    _notifier_name = '钉钉'
+
+    def __init__(self, config_override: dict = None):
+        cfg = {**config.DINGTALK_CONFIG, **(config_override or {})}
+        super().__init__(cfg, config_override)
         self._secret = cfg.get('secret', '')
         self._default_at_mobiles = cfg.get('at_mobiles', [])
         self._default_at_all = cfg.get('at_all', False)
 
-    def _sign(self) -> tuple:
-        """生成钉钉加签参数 (timestamp, sign)"""
-        timestamp = str(round(time.time() * 1000))
-        string_to_sign = f'{timestamp}\n{self._secret}'
-        sign = base64.b64encode(
-            hmac.new(
-                self._secret.encode('utf-8'),
-                string_to_sign.encode('utf-8'),
-                hashlib.sha256
-            ).digest()
-        ).decode('utf-8')
-        return timestamp, urllib.parse.quote_plus(sign)
-
     def _get_url(self) -> str:
         url = self._webhook_url
         if self._secret:
-            timestamp, sign = self._sign()
-            url = f'{url}&timestamp={timestamp}&sign={sign}'
+            timestamp = str(round(time.time() * 1000))
+            string_to_sign = f'{timestamp}\n{self._secret}'
+            sign = base64.b64encode(
+                hmac.new(
+                    self._secret.encode('utf-8'),
+                    string_to_sign.encode('utf-8'),
+                    hashlib.sha256
+                ).digest()
+            ).decode('utf-8')
+            url = f'{url}&timestamp={timestamp}&sign={urllib.parse.quote_plus(sign)}'
         return url
-
-    def _post(self, payload: dict):
-        if not self._enabled:
-            logger.debug('钉钉通知未启用，跳过发送')
-            return
-
-        try:
-            resp = requests.post(self._get_url(), json=payload, timeout=10)
-            result = resp.json()
-            if result.get('errcode') == 0:
-                logger.info('钉钉消息已发送')
-                print_success('钉钉消息已发送')
-            else:
-                logger.error(f'钉钉消息发送失败: {result}')
-                print_error(f'钉钉消息发送失败: {result}')
-        except Exception as e:
-            logger.error(f'钉钉消息发送异常: {e}')
-            print_error(f'钉钉消息发送异常: {e}')
 
     def _build_at(self, at_mobiles: Optional[List[str]], at_all: Optional[bool]) -> dict:
         mobiles = at_mobiles if at_mobiles is not None else self._default_at_mobiles
@@ -190,33 +235,16 @@ class DingTalkNotifier:
 
 # ==================== 企业微信机器人 ====================
 
-class WeComNotifier:
-    """企业微信群机器人通知，配置来源 config.WECOM_CONFIG"""
+class WeComNotifier(BaseWebhookNotifier):
+    """企业微信群机器人通知"""
 
-    def __init__(self):
-        cfg = config.WECOM_CONFIG
-        self._enabled = cfg.get('enabled', False)
-        self._webhook_url = cfg.get('webhook_url', '')
+    _notifier_name = '企业微信'
+
+    def __init__(self, config_override: dict = None):
+        cfg = {**config.WECOM_CONFIG, **(config_override or {})}
+        super().__init__(cfg, config_override)
         self._default_mentioned_list = cfg.get('mentioned_list', [])
         self._default_mentioned_mobile_list = cfg.get('mentioned_mobile_list', [])
-
-    def _post(self, payload: dict):
-        if not self._enabled:
-            logger.debug('企业微信通知未启用，跳过发送')
-            return
-
-        try:
-            resp = requests.post(self._webhook_url, json=payload, timeout=10)
-            result = resp.json()
-            if result.get('errcode') == 0:
-                logger.info('企业微信消息已发送')
-                print_success('企业微信消息已发送')
-            else:
-                logger.error(f'企业微信消息发送失败: {result}')
-                print_error(f'企业微信消息发送失败: {result}')
-        except Exception as e:
-            logger.error(f'企业微信消息发送异常: {e}')
-            print_error(f'企业微信消息发送异常: {e}')
 
     def send_text(self, content: str, mentioned_list: Optional[List[str]] = None,
                   mentioned_mobile_list: Optional[List[str]] = None):
@@ -240,17 +268,21 @@ class WeComNotifier:
 
 # ==================== 飞书机器人 ====================
 
-class FeishuNotifier:
-    """飞书群机器人通知，配置来源 config.FEISHU_CONFIG"""
+class FeishuNotifier(BaseWebhookNotifier):
+    """飞书群机器人通知"""
 
-    def __init__(self):
-        cfg = config.FEISHU_CONFIG
-        self._enabled = cfg.get('enabled', False)
-        self._webhook_url = cfg.get('webhook_url', '')
+    _notifier_name = '飞书'
+    _success_field = 'code'
+
+    def __init__(self, config_override: dict = None):
+        cfg = {**config.FEISHU_CONFIG, **(config_override or {})}
+        super().__init__(cfg, config_override)
         self._secret = cfg.get('secret', '')
 
-    def _sign(self) -> tuple:
-        """生成飞书签名 (timestamp, sign)"""
+    def _sign(self) -> Optional[Dict[str, Any]]:
+        """飞书加签：timestamp+sign 放入请求体"""
+        if not self._secret:
+            return None
         timestamp = str(int(time.time()))
         string_to_sign = f'{timestamp}\n{self._secret}'
         sign = base64.b64encode(
@@ -260,31 +292,7 @@ class FeishuNotifier:
                 hashlib.sha256
             ).digest()
         ).decode('utf-8')
-        return timestamp, sign
-
-    def _post(self, payload: dict):
-        if not self._enabled:
-            logger.debug('飞书通知未启用，跳过发送')
-            return
-
-        # 加签参数放入请求体
-        if self._secret:
-            timestamp, sign = self._sign()
-            payload['timestamp'] = timestamp
-            payload['sign'] = sign
-
-        try:
-            resp = requests.post(self._webhook_url, json=payload, timeout=10)
-            result = resp.json()
-            if result.get('code') == 0:
-                logger.info('飞书消息已发送')
-                print_success('飞书消息已发送')
-            else:
-                logger.error(f'飞书消息发送失败: {result}')
-                print_error(f'飞书消息发送失败: {result}')
-        except Exception as e:
-            logger.error(f'飞书消息发送异常: {e}')
-            print_error(f'飞书消息发送异常: {e}')
+        return {'timestamp': timestamp, 'sign': sign}
 
     def send_text(self, content: str):
         payload = {

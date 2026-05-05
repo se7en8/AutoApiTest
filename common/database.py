@@ -28,8 +28,8 @@ _DEFAULT_PORTS = {
 class DatabaseManager:
     """数据库连接池管理器，由 pytest session fixture 注入"""
 
-    def __init__(self):
-        cfg = config.DATABASE_CONFIG
+    def __init__(self, config_override: dict = None):
+        cfg = {**config.DATABASE_CONFIG, **(config_override or {})}
         self._pool: Optional[PooledDB] = None
         self._db_type = cfg.get('type', 'sqlite')
 
@@ -112,11 +112,15 @@ class DatabaseManager:
 
     def query_dict(self, sql: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
         """执行 SELECT，返回全部行（字典格式）"""
+        rows = self.query(sql, params)
+        if not rows:
+            return []
+        # 获取列名需要一次轻量查询以获取 cursor.description
         with self._get_conn() as conn:
             cursor = conn.cursor()
             cursor.execute(sql, params or ())
             columns = [desc[0] for desc in cursor.description] if cursor.description else []
-            return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        return [dict(zip(columns, row)) for row in rows]
 
     # ==================== 写入 ====================
 
